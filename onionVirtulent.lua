@@ -43,6 +43,7 @@ local deathMessages = { }
 local allMessages
 local initialize = false
 local scrW, scrH
+local localPlayer
 
 --
 -- Misc Functions
@@ -165,28 +166,8 @@ function drawShit()
             local cacheTable = split( "}", allMessages[i])
 
             if (cacheTable[2] == "1") then
-                allMessages[i] = allMessages[i]:gsub("}1", "")
-
-                if (string.match(allMessages[i], ";1")) then
-                    allMessages[i] = allMessages[i]:gsub(";1", " - Friendly")
-                elseif (string.match(allMessages[i], ";2")) then
-                    allMessages[i] = allMessages[i]:gsub(";2", " - Average")
-                elseif (string.match(allMessages[i], ";3")) then
-                    allMessages[i] = allMessages[i]:gsub(";3", " - Toxic")
-                end
-
                 table.insert(killMessages, allMessages[i])
             elseif (cacheTable[2] == "2") then
-                allMessages[i] = allMessages[i]:gsub("}2", "")
-
-                if (string.match(allMessages[i], ";1")) then
-                    allMessages[i] = allMessages[i]:gsub(";1", " - Friendly")
-                elseif (string.match(allMessages[i], ";2")) then
-                    allMessages[i] = allMessages[i]:gsub(";2", " - Average")
-                elseif (string.match(allMessages[i], ";3")) then
-                    allMessages[i] = allMessages[i]:gsub(";3", " - Toxic")
-                end
-
                 table.insert(deathMessages, allMessages[i])
             end
         end
@@ -200,6 +181,8 @@ function drawShit()
         end
 	end
 
+    localPlayer = entities.GetLocalPlayer()
+
     drawHUD()
 end
 
@@ -207,8 +190,52 @@ function drawHUD()
 
 end
 
+function chatMessage( triggeredEvent )
+    if (triggeredEvent:GetName() == "player_death") then
+        if (localPlayer == nil) then
+            return
+        end
+
+        local localPlayerIndex = client.GetLocalPlayerIndex()
+        local deadPlayer = client.GetPlayerIndexByUserID(triggeredEvent:GetInt('userid'))
+        local killerPlayer = client.GetPlayerIndexByUserID(triggeredEvent:GetInt('attacker'))
+        local messageCache = { }
+
+        if (killerPlayer == localPlayerIndex and deadPlayer ~= localPlayerIndex) then
+            if (onion_killsay_enable:GetValue) then
+                for (i, name in ipairs(killMessages)) do
+                    if (string.match(killMessages[i], ";" .. onion_killsay_settings_toxicity_amount:GetValue())) then
+                        local replace = ";" .. onion_killsay_settings_toxicity_amount:GetValue() .. "}1"
+                        local messageInsert = killMessages[i]:gsub(replace, "")
+                        table.insert(messageCache, messageInsert)
+                    end
+                end
+
+                print(messageCache[math.random(#messageCache)])
+            end
+        elseif (killerPlayer ~= localPlayerIndex and deadPlayer == localPlayerIndex) then
+            for (i, name in ipairs(deathMessages)) do
+                if (string.match(deathMessages[i], ";" .. onion_deathsay_settings_toxicity_amount:GetValue())) then
+                    local replace = ";" .. onion_deathsay_settings_toxicity_amount:GetValue() .. "}2"
+                    local messageInsert = deathMessages[i]:gsub(replace, "")
+                    table.insert(messageCache, messageInsert)
+                end
+            end
+
+            print(messageCache[math.random(#messageCache)])
+        end
+
+        for (i, name in ipairs(messageCache)) do
+            print(messageCache[i])
+        end
+    end
+end
+
 --
--- Callbacks
+-- Callbacks / Listeners
 --
 
 callbacks.Register('Draw', drawShit);
+
+client.AllowListener( 'player_death' );
+callbacks.Register( 'FireGameEvent', chatMessage );
