@@ -13,8 +13,8 @@ local onion_window = gui.Tab(gui.Reference("Settings"), 'onion_window_virulent',
 -- Groupboxes
 local onion_window_groupbox_1 = gui.Groupbox(onion_window, 'Settings', 15, 15)
 local onion_window_groupbox_2 = gui.Groupbox(onion_window, 'Killsay Settings', 15, 185)
-local onion_window_groupbox_3 = gui.Groupbox(onion_window, 'Deathsay Settings', 15, 330)
-local onion_window_groupbox_4 = gui.Groupbox(onion_window, 'HUD Settings', 15, 475)
+local onion_window_groupbox_3 = gui.Groupbox(onion_window, 'Deathsay Settings', 15, 365)
+local onion_window_groupbox_4 = gui.Groupbox(onion_window, 'HUD Settings', 15, 545)
 
 -- Settings Groupbox
 local onion_killsay_enable = gui.Checkbox( onion_window_groupbox_1, "onion_killsay_enable", "Enable Killsay", true)
@@ -24,10 +24,12 @@ local onion_hud_enable = gui.Checkbox( onion_window_groupbox_1, "onion_hud_enabl
 -- Killsay Groupbox
 local onion_killsay_settings_toxicity_enable = gui.Checkbox( onion_window_groupbox_2, "onion_killsay_settings_toxicity_enable", "Toxicity Levels", true)
 local onion_killsay_settings_toxicity_amount = gui.Slider( onion_window_groupbox_2, "onion_killsay_settings_toxicity_amount", "Toxicity Amount (Lower is nicer)", 3, 1, 3 )
+local onion_killsay_settings_bot = gui.Checkbox( onion_window_groupbox_2, "onion_killsay_settings_bot", "Bot Check", true)
 
 -- Deathsay Groupbox
 local onion_deathsay_settings_toxicity_enable = gui.Checkbox( onion_window_groupbox_3, "onion_deathsay_settings_toxicity_enable", "Toxicity Levels", true)
 local onion_deathsay_settings_toxicity_amount = gui.Slider( onion_window_groupbox_3, "onion_deathsay_settings_toxicity_amount", "Toxicity Amount (Lower is nicer)", 3, 1, 3 )
+local onion_deathsay_settings_bot = gui.Checkbox( onion_window_groupbox_3, "onion_deathsay_settings_bot", "Bot Check", true)
 
 -- HUD Groupbox
 local onion_hud_killsay_enable = gui.Checkbox( onion_window_groupbox_4, "onion_hud_killsay_enable", "Killsay HUD", true)
@@ -200,10 +202,18 @@ function chatMessage( triggeredEvent )
         local deadPlayer = client.GetPlayerIndexByUserID(triggeredEvent:GetInt('userid'))
         local killerPlayer = client.GetPlayerIndexByUserID(triggeredEvent:GetInt('attacker'))
         local messageCache = { }
-
+        
         if (killerPlayer == localPlayerIndex and deadPlayer ~= localPlayerIndex) then
-            if (onion_killsay_enable:GetValue) then
-                for (i, name in ipairs(killMessages)) do
+            if (onion_killsay_settings_bot:GetValue()) then
+                local playerInfo = client.GetPlayerInfo(deadPlayer)
+
+                if (playerInfo["IsBot"]) then
+                    return
+                end
+            end
+
+            if (onion_killsay_enable:GetValue()) then
+                for i, name in ipairs(killMessages) do
                     if (string.match(killMessages[i], ";" .. onion_killsay_settings_toxicity_amount:GetValue())) then
                         local replace = ";" .. onion_killsay_settings_toxicity_amount:GetValue() .. "}1"
                         local messageInsert = killMessages[i]:gsub(replace, "")
@@ -211,22 +221,28 @@ function chatMessage( triggeredEvent )
                     end
                 end
 
-                print(messageCache[math.random(#messageCache)])
+                client.ChatSay(messageCache[math.random(#messageCache)])
             end
         elseif (killerPlayer ~= localPlayerIndex and deadPlayer == localPlayerIndex) then
-            for (i, name in ipairs(deathMessages)) do
-                if (string.match(deathMessages[i], ";" .. onion_deathsay_settings_toxicity_amount:GetValue())) then
-                    local replace = ";" .. onion_deathsay_settings_toxicity_amount:GetValue() .. "}2"
-                    local messageInsert = deathMessages[i]:gsub(replace, "")
-                    table.insert(messageCache, messageInsert)
+            if (onion_deathsay_settings_bot:GetValue()) then
+                local playerInfo = client.GetPlayerInfo(killerPlayer)
+
+                if (playerInfo["IsBot"]) then
+                    return
                 end
             end
 
-            print(messageCache[math.random(#messageCache)])
-        end
+            if (onion_deathsay_enable:GetValue()) then
+                for i, name in ipairs(deathMessages) do
+                    if (string.match(deathMessages[i], ";" .. onion_deathsay_settings_toxicity_amount:GetValue())) then
+                        local replace = ";" .. onion_deathsay_settings_toxicity_amount:GetValue() .. "}2"
+                        local messageInsert = deathMessages[i]:gsub(replace, "")
+                        table.insert(messageCache, messageInsert)
+                    end
+                end
 
-        for (i, name in ipairs(messageCache)) do
-            print(messageCache[i])
+                client.ChatSay(messageCache[math.random(#messageCache)])
+            end
         end
     end
 end
