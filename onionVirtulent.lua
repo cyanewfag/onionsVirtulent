@@ -34,10 +34,15 @@ local onion_deathsay_settings_bot = gui.Checkbox( onion_window_groupbox_3, "onio
 -- HUD Groupbox
 local onion_hud_killsay_enable = gui.Checkbox( onion_window_groupbox_4, "onion_hud_killsay_enable", "Killsay HUD", true)
 local onion_hud_deathsay_enable = gui.Checkbox( onion_window_groupbox_4, "onion_hud_deathsay_enable", "Deathsay HUD", true)
+local onion_hud_draggable = gui.Checkbox( onion_window_groupbox_4, "onion_hud_draggable", "Draggable", true)
 local onion_hud_style = gui.Combobox(onion_window_groupbox_4, 'onion_hud_style', 'HUD Style', "Skeet", "Onetap")
 local onion_hud_color_text = gui.ColorPicker(onion_window_groupbox_4, 'onion_hud_color_text', 'HUD Text Color', 255, 255, 255, 255)
 local onion_hud_color_gradient_1 = gui.ColorPicker(onion_window_groupbox_4, 'onion_hud_color_gradient_1', 'First Gradient Color', 0, 183, 255, 255)
 local onion_hud_color_gradient_2 = gui.ColorPicker(onion_window_groupbox_4, 'onion_hud_color_gradient_2', 'Second Gradient Color', 0, 137, 191, 255)
+local onion_hud_distancing = gui.Slider( onion_window_groupbox_4, "onion_hud_distancing", "Control Distance", 10, 0, 50 )
+
+-- Fonts
+local textFont = draw.CreateFont( "Tahoma", 16 )
 
 -- Misc Variables
 local killMessages = { }
@@ -46,6 +51,13 @@ local allMessages
 local initialize = false
 local scrW, scrH
 local localPlayer
+local posX, posY = 15, 300
+local mouseX, mouseY = 0, 0
+local mouseDownX, mouseDownY = 0, 0
+local mouseState = "none"
+local dragging = false
+local latestKillsay = ""
+local latestDeathsay = ""
 
 --
 -- Misc Functions
@@ -155,6 +167,42 @@ function drawOutlineGradient( outlineColor, color1, color2, x, y, w, h, vertical
 end
 
 --
+-- Styled Drawing
+--
+
+function drawSkeetTextbox(textColor, x, y, font, string)
+    local r, g, b, a = textColor
+
+    draw.SetFont(font)
+    local strW, strH = draw.GetTextSize(string)
+
+    drawFilledRect(10, 10, 10, 255, x, y, strW + 20, strH + 16)
+    drawFilledRect(60, 60, 60, 255, x + 1, y + 1, strW + 18, strH + 14)
+    drawFilledRect(40, 40, 40, 255, x + 2, y + 2, strW + 16, strH + 12)
+    drawFilledRect(10, 10, 10, 255, x + 5, y + 5, strW + 10, strH + 6)
+    drawFilledRect(17, 17, 17, 255, x + 6, y + 6, strW + 8, strH + 4)
+    drawCenteredText(255, 255, 255, 255, x + ((strW + 20) / 2), y + ((strH + 14) / 2), font, string)
+
+    return (strW + 20), (strH + 16)
+end
+
+function drawOnetapTextbox(textColor, gradientColor1, gradientColor2, x, y, font, string)
+    local a, b, c, d = textColor[1], textColor[2], textColor[3], textColor[4]
+    local e, f, g, h = gradientColor1[1], gradientColor1[2], gradientColor1[3], gradientColor1[4]
+    local i, j, k, l = gradientColor2[1], gradientColor2[2], gradientColor2[3], gradientColor2[4]
+
+    draw.SetFont(font)
+    local strW, strH = draw.GetTextSize(string)
+
+    drawGradient({i, j, k, l}, {e, f, g, h}, x, y, (strW + 14) / 2, 2)
+    drawGradient({e, f, g, h}, {i, j, k, l}, x + ((strW + 14) / 2), y, (strW + 14) / 2, 2)
+    drawFilledRect(10, 10, 10, 125, x, y + 2, (strW + 14), (strH + 8) - 2)
+    drawCenteredText(a, b, c, d, x + ((strW + 14) / 2), (y + 1) + (((strH + 8) - 2) / 2), font, string)
+
+    return (strW + 14), (strH + 8)
+end
+
+--
 -- Callback Functions
 --
 
@@ -184,12 +232,81 @@ function drawShit()
 	end
 
     localPlayer = entities.GetLocalPlayer()
+    mouseX, mouseY = input.GetMousePos()
+
+    if (input.IsButtonDown("Mouse1")) then
+        mouseState = "down"
+    else
+        mouseState = "none"
+    end
 
     drawHUD()
 end
 
 function drawHUD()
+    local currentY = 0
+    local width, height = 0, 0
+    local style = onion_hud_style:GetValue()
+    local r, g, b, a = onion_hud_color_text:GetValue()
+    local gR1, gG1, gB1, gA1 = onion_hud_color_gradient_1:GetValue()
+    local gR2, gG2, gB2, gA2 = onion_hud_color_gradient_2:GetValue()
 
+    if (onion_killsay_enable:GetValue()) then
+        if (onion_hud_killsay_enable:GetValue()) then
+            local burnerW, burnerH = 0, 0
+
+            if (style == 0) then
+                burnerW, burnerH = drawSkeetTextbox({r, g, b, a}, posX, posY + currentY, textFont, "Killsay: " .. latestKillsay)
+            else
+                burnerW, burnerH = drawOnetapTextbox({r, g, b, a}, {gR1, gG1, gB1, gA1}, {gR2, gG2, gB2, gA2}, posX, posY + currentY, textFont, "Killsay: " .. latestKillsay)
+            end
+
+            if (burnerW > width) then
+                width = burnerW
+            end
+
+            height = height + burnerH + onion_hud_distancing:GetValue()
+            currentY = currentY + height
+        end
+    end
+
+    if (onion_deathsay_enable:GetValue()) then
+        if (onion_hud_deathsay_enable:GetValue()) then
+            local burnerW, burnerH = 0, 0
+
+            if (style == 0) then
+                burnerW, burnerH = drawSkeetTextbox({r, g, b, a}, posX, posY + currentY + onion_hud_distancing:GetValue(), textFont, "Deathsay: " .. latestDeathsay)
+            else
+                burnerW, burnerH = drawOnetapTextbox({r, g, b, a}, {gR1, gG1, gB1, gA1}, {gR2, gG2, gB2, gA2}, posX, posY + currentY + onion_hud_distancing:GetValue(), textFont, "Deathsay: " .. latestDeathsay)
+            end
+
+            if (burnerW > width) then
+                width = burnerW
+            end
+
+            height = height + burnerH + onion_hud_distancing:GetValue()
+            currentY = currentY + height
+        end
+    end
+
+    if (onion_hud_draggable:GetValue()) then
+        if (mouseState == "down" and dragging == false) then
+            if (mouseX > posX and mouseX < (posX + width) and mouseY > posY and mouseY < (posY + height)) then
+                dragging = true
+                mouseDownX, mouseDownY = mouseX - posX, mouseY - posY
+            end
+        end
+
+        if (dragging == true) then
+            if (mouseState == "down") then
+                posX, posY = mouseX - mouseDownX, mouseY - mouseDownY
+            else
+                dragging = false;
+            end
+        end
+    else
+        dragging = false
+    end
 end
 
 function chatMessage( triggeredEvent )
@@ -221,7 +338,8 @@ function chatMessage( triggeredEvent )
                     end
                 end
 
-                client.ChatSay(messageCache[math.random(#messageCache)])
+                latestKillsay = messageCache[math.random(#messageCache)]
+                client.ChatSay(latestKillsay)
             end
         elseif (killerPlayer ~= localPlayerIndex and deadPlayer == localPlayerIndex) then
             if (onion_deathsay_settings_bot:GetValue()) then
@@ -241,7 +359,8 @@ function chatMessage( triggeredEvent )
                     end
                 end
 
-                client.ChatSay(messageCache[math.random(#messageCache)])
+                latestDeathsay = messageCache[math.random(#messageCache)]
+                client.ChatSay(latestDeathsay)
             end
         end
     end
